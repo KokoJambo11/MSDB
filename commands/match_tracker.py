@@ -16,27 +16,31 @@ class MatchTracker(commands.Cog):
         self.tracker.cancel()
 
     @tasks.loop(minutes=2)
-    async def tracker(self):
-        try:
-            players = load_players()
-            for player in players:
-                current_status, _ = await get_player_status(
-                    player['server'],
-                    player['name'],
-                    player['tag']
-                )
+async def tracker(self):
+    try:
+        players = load_players()
+        for player in players:
+            current_status, error, game_mode = await get_player_status(  # <-- 3 значения
+                player['server'],
+                player['name'],
+                player['tag']
+            )
+            
+            prev_status = self.last_statuses.get(f"{player['name']}#{player['tag']}")
+            
+            if prev_status and "в игре" in prev_status and "в игре" not in current_status:
+                await self.send_match_report(player, game_mode)  # <-- Передаём режим
                 
-                prev_status = self.last_statuses.get(f"{player['name']}#{player['tag']}")
-                
-                # Если статус изменился с "в игре" на другой
-                if prev_status and "в игре" in prev_status and "в игре" not in current_status:
-                    await self.send_match_report(player)
-                
-                self.last_statuses[f"{player['name']}#{player['tag']}"] = current_status
+            self.last_statuses[f"{player['name']}#{player['tag']}"] = current_status
         except Exception as e:
             print(f"Tracker error: {str(e)}")
 
-    async def send_match_report(self, player):
+   async def send_match_report(self, player, game_mode):
+    embed = discord.Embed(
+        title=f"Матч завершен ({game_mode})",  # <-- Добавлен режим
+        description=f"Игрок: {player['name']}#{player['tag']}",
+        color=0x00ff00
+    )
         """Отправляет отчет о последнем матче"""
         try:
             # Получаем PUUID игрока
