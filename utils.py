@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-import aoihttp
+import aiohttp
 from pathlib import Path
 from dotenv import load_dotenv
 from urllib.parse import quote
