@@ -39,18 +39,39 @@ GAME_MODES = {
 async def get_player_status(server, name, tag):
     region_data = REGION_MAPPING.get(server.lower())
     if not region_data:
-        return None, "Invalid server"
+        return None, "Неверный сервер", None
 
-    account_url = f"https://{region_data['region']}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{quote(name)}/{tag}"
-    account_data, error = await fetch_riot_data(account_url, {"X-Riot-Token": RIOT_API_KEY})
-    
-    if error or not account_data.get('puuid'):
-        return None, error or "Player not found"
+    try:
+        # Получение PUUID
+        account_url = f"https://{region_data['region']}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{quote(name)}/{tag}"
+        account_data, acc_error = await fetch_riot_data(account_url, {"X-Riot-Token": RIOT_API_KEY})
+        
+        if acc_error or not account_data.get('puuid'):
+            return None, "Игрок не найден", None
 
-    spectator_url = f"https://{region_data['cluster']}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/{account_data['puuid']}"
-    game_data, _ = await fetch_riot_data(spectator_url, {"X-Riot-Token": RIOT_API_KEY})
-    
-    return "🎮 В игре" if game_data else "💤 Оффлайн", None
+        # Проверка активной игры
+        spectator_url = f"https://{region_data['cluster']}.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/{account_data['puuid']}"
+        game_data, game_error = await fetch_riot_data(spectator_url, {"X-Riot-Token": RIOT_API_KEY})
+
+        if game_data:
+            queue_id = game_data.get('gameQueueConfigId', 0)
+            game_mode = GAME_MODES.get(queue_id, "Custom")
+            return "В игре", None, game_mode
+        
+        # Проверка статуса в очереди
+        summoner_url = f"https://{region_data['cluster']}.api.riotgames.com/lol/summoner/v5/summoners/by-puuid/{account_data['puuid']}"
+        summoner_data, sum_error = await fetch_riot_data(summoner_url, {"X-Riot-Token": RIOT_API_KEY})
+        
+        if summoner_data:
+            league_url = f"https://{region_data['cluster']}.api.riotgames.com/lol/league/v5/entries/by-summoner/{summoner_data['id']}"
+            league_data, _ = await fetch_riot_data(league_url, {"X-Riot-Token": RIOT_API_KEY})
+            if league_data:
+                return "В очереди", None, "Ranked"  # Общее для всех ранговых режимов
+        return "Оффлайн", None, None
+
+    except Exception as e:
+        logging.error(f"Ошибка проверки статуса: {str(e)}")
+        return None, "Ошибка API", None
 
 def load_players():
     if not DATA_FILE.exists():
@@ -79,7 +100,7 @@ async def fetch_riot_data(url, headers):
                     return None, "Not found"
                 elif response.status == 403:
                     logging.critical("Invalid API Key!")
-                    return None, "Invalid API Key"
+                    return None, "Invalid API Key!"
                 else:
                     return None, f"API Error: {response.status}"
         except Exception as e:
