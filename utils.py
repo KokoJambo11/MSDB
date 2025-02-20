@@ -59,11 +59,11 @@ async def get_player_status(server, name, tag):
             return "В игре", None, game_mode
         
         # Проверка статуса в очереди
-        summoner_url = f"https://{region_data['cluster']}.api.riotgames.com/lol/summoner/v5/summoners/by-puuid/{account_data['puuid']}"
+        summoner_url = f"https://{region_data['cluster']}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/{account_data['puuid']}"
         summoner_data, sum_error = await fetch_riot_data(summoner_url, {"X-Riot-Token": RIOT_API_KEY})
         
         if summoner_data:
-            league_url = f"https://{region_data['cluster']}.api.riotgames.com/lol/league/v5/entries/by-summoner/{summoner_data['id']}"
+            league_url = f"https://{region_data['cluster']}.api.riotgames.com/lol/league/v4/entries/by-summoner/{summoner_data['id']}"
             league_data, _ = await fetch_riot_data(league_url, {"X-Riot-Token": RIOT_API_KEY})
             if league_data:
                 return "В очереди", None, "Ranked"  # Общее для всех ранговых режимов
